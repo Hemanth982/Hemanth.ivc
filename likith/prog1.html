@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gaming Store</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .game-card { border: 1px solid #ccc; padding: 12px; margin: 8px; width: 230px; display: inline-block; vertical-align: top; }
+    .cart { position: fixed; right: 20px; top: 20px; width: 320px; border: 1px solid #333; padding: 14px; background: #fafafa; }
+    .btn { background: #0a74da; color: white; border: 0; padding: 8px 12px; cursor: pointer; margin-top: 8px; }
+    .btn:hover { opacity: .9; }
+  </style>
+</head>
+<body>
+
+  <h1>Game Shop</h1>
+  <div id="game-list"></div>
+
+  <div class="cart">
+    <h2>Cart</h2>
+    <ul id="cart-items"></ul>
+    <p>Total: $<span id="total">0.00</span></p>
+    <button id="checkout" class="btn">Checkout</button>
+    <div id="checkout-status"></div>
+  </div>
+
+  <div id="payment-section" style="display:none; margin-top: 20px; border: 1px solid #ccc; padding: 12px; background: #fff;">
+    <h2>Payment checkout</h2>
+    <p id="payment-total">Total: $0.00</p>
+    <label>Full Name<br><input id="customer-name" type="text" style="width:100%; padding:6px" required></label><br><br>
+    <label>Email<br><input id="customer-email" type="email" style="width:100%; padding:6px" required></label><br><br>
+    <label>Card Number (demo)<br><input id="card-number" type="text" style="width:100%; padding:6px" placeholder="4242 4242 4242 4242"></label><br><br>
+    <label>Expiry MM/YY<br><input id="card-expiry" type="text" style="width:100%; padding:6px" placeholder="12/34"></label><br><br>
+    <label>CVC<br><input id="card-cvc" type="text" style="width:100%; padding:6px" placeholder="123"></label><br><br>
+    <button id="confirm-payment" class="btn">Pay Now</button>
+    <button id="cancel-payment" class="btn" style="background:#777; margin-left:5px;">Cancel</button>
+    <div id="payment-status" style="margin-top:10px;"></div>
+  </div>
+
+  <script src="https://js.stripe.com/v3/"></script>
+  <script>
+    const games = [
+      {id: 'g1', title: 'Space Explorer', price: 19.99},
+      {id: 'g2', title: 'Cyber Racer', price: 14.99},
+      {id: 'g3', title: 'Dungeon Siege', price: 24.99},
+      {id: 'g4', title: 'Battle Wizards', price: 11.99},
+      {id: 'g5', title: 'Widget Forge', price: 9.99},
+      {id: 'g6', title: 'Ninja Sprint', price: 12.99},
+      {id: 'g7', title: 'Alien Outbreak', price: 29.99}
+    ];
+
+    const cart = {};
+    const gameList = document.getElementById('game-list');
+    const cartItems = document.getElementById('cart-items');
+    const totalEl = document.getElementById('total');
+    const statusEl = document.getElementById('checkout-status');
+
+    const paymentSection = document.getElementById('payment-section');
+    const paymentTotal = document.getElementById('payment-total');
+    const paymentStatus = document.getElementById('payment-status');
+    const confirmPaymentBtn = document.getElementById('confirm-payment');
+    const cancelPaymentBtn = document.getElementById('cancel-payment');
+    const customerName = document.getElementById('customer-name');
+    const customerEmail = document.getElementById('customer-email');
+    const cardNumber = document.getElementById('card-number');
+    const cardExpiry = document.getElementById('card-expiry');
+    const cardCvc = document.getElementById('card-cvc');
+
+    function renderGames() {
+      gameList.innerHTML = '';
+      games.forEach(game => {
+        const card = document.createElement('div');
+        card.className = 'game-card';
+        card.innerHTML = `
+          <h3>${game.title}</h3>
+          <p>Price: $${game.price.toFixed(2)}</p>
+          <button class="btn" data-id="${game.id}">Add to Cart</button>
+        `;
+        gameList.appendChild(card);
+      });
+    }
+
+    function renderCart() {
+      cartItems.innerHTML = '';
+      let total = 0;
+      Object.values(cart).forEach(item => {
+        total += item.price * item.qty;
+        const li = document.createElement('li');
+        li.textContent = `${item.title} x${item.qty} - $${(item.price*item.qty).toFixed(2)}`;
+        cartItems.appendChild(li);
+      });
+      totalEl.textContent = total.toFixed(2);
+    }
+
+    gameList.addEventListener('click', e => {
+      if (!e.target.matches('button')) return;
+      const id = e.target.dataset.id;
+      const game = games.find(g => g.id === id);
+      if (!cart[id]) cart[id] = {...game, qty: 0};
+      cart[id].qty += 1;
+      renderCart();
+    });
+
+    function getCartTotal() {
+      return Object.values(cart).reduce((sum, item) => sum + item.price * item.qty, 0);
+    }
+
+    function showPaymentSection() {
+      paymentSection.style.display = 'block';
+      paymentTotal.textContent = `Total: $${getCartTotal().toFixed(2)}`;
+      paymentStatus.textContent = '';
+      statusEl.textContent = '';
+    }
+
+    function hidePaymentSection() {
+      paymentSection.style.display = 'none';
+    }
+
+    document.getElementById('checkout').addEventListener('click', () => {
+      if (Object.keys(cart).length === 0) {
+        statusEl.textContent = 'Cart empty.';
+        return;
+      }
+      showPaymentSection();
+    });
+
+    confirmPaymentBtn.addEventListener('click', () => {
+      const name = customerName.value.trim();
+      const email = customerEmail.value.trim();
+      if (!name || !email || !cardNumber.value.trim() || !cardExpiry.value.trim() || !cardCvc.value.trim()) {
+        paymentStatus.textContent = 'Please fill all payment fields.';
+        paymentStatus.style.color = 'red';
+        return;
+      }
+
+      paymentStatus.style.color = 'green';
+      paymentStatus.textContent = 'Payment successful! Thank you for your purchase.';
+
+      // reset cart for demonstration
+      Object.keys(cart).forEach(key => delete cart[key]);
+      renderCart();
+      setTimeout(() => {
+        hidePaymentSection();
+        customerName.value = '';
+        customerEmail.value = '';
+        cardNumber.value = '';
+        cardExpiry.value = '';
+        cardCvc.value = '';
+      }, 1300);
+    });
+
+    cancelPaymentBtn.addEventListener('click', () => {
+      hidePaymentSection();
+      paymentStatus.textContent = '';
+      statusEl.textContent = 'Payment canceled.';
+    });
+
+    renderGames();
+    renderCart();
+  </script>
+</body>
+</html>
